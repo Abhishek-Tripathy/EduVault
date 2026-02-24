@@ -119,4 +119,4 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
   To demonstrate a deep understanding of stateless authentication flows, cryptography (hashing/verifying), and cookie management from scratch, rather than relying on a black-box authentication library.
 
 ---
-*Developed as an evaluation project for Full Stack Engineering.*
+
