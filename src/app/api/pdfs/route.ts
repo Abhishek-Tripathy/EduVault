@@ -94,18 +94,23 @@ export async function GET(req: NextRequest) {
     const subject = searchParams.get("subject")?.toLowerCase().trim() || "";
     const className = searchParams.get("class")?.toLowerCase().trim() || "";
     const school = searchParams.get("school")?.toLowerCase().trim() || "";
+    const mine = searchParams.get("mine") === "true";
+
+    const isPersonalQuery = mine && user.role === "ACADEMY";
 
     // 2. Cache Logic
     const cacheKey = `pdfs:search:${subject || "all"}:${className || "all"}:${school || "all"}`;
     
-    try {
-      const cachedData = await redis.get(cacheKey);
-      if (cachedData) {
-        return NextResponse.json({ data: cachedData, source: "cache" }, { status: 200 });
+    if (!isPersonalQuery) {
+      try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+          return NextResponse.json({ data: cachedData, source: "cache" }, { status: 200 });
+        }
+      } catch (redisError) {
+        console.warn("Redis GET error:", redisError);
+        // Fallback to DB if Redis fails
       }
-    } catch (redisError) {
-      console.warn("Redis GET error:", redisError);
-      // Fallback to DB if Redis fails
     }
 
     // 3. Query DB
@@ -113,6 +118,7 @@ export async function GET(req: NextRequest) {
     if (subject) conditions.push(ilike(pdfs.subjectName, `%${subject}%`));
     if (className) conditions.push(ilike(pdfs.className, `%${className}%`));
     if (school) conditions.push(ilike(pdfs.schoolName, `%${school}%`));
+    if (isPersonalQuery) conditions.push(eq(pdfs.academyId, user.userId));
 
     const results = await db.select({
       id: pdfs.id,
@@ -126,14 +132,16 @@ export async function GET(req: NextRequest) {
     })
     .from(pdfs)
     .leftJoin(users, eq(pdfs.academyId, users.id))
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(pdfs.createdAt));
 
     // 4. Save to Cache
-    try {
-      await redis.set(cacheKey, JSON.stringify(results), { ex: 3600 }); // Cache for 1 hour
-    } catch (redisError) {
-      console.warn("Redis SET error:", redisError);
+    if (!isPersonalQuery) {
+      try {
+        await redis.set(cacheKey, JSON.stringify(results), { ex: 3600 }); // Cache for 1 hour
+      } catch (redisError) {
+        console.warn("Redis SET error:", redisError);
+      }
     }
 
     return NextResponse.json({ data: results, source: "database" }, { status: 200 });
