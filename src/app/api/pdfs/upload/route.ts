@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       onBeforeGenerateToken: async (pathname) => {
         return {
           allowedContentTypes: ["application/pdf"],
-          maximumSizeInBytes: 10 * 1024 * 1024, // 10MB
+          maximumSizeInBytes: 50 * 1024 * 1024, // 50MB
           tokenPayload: JSON.stringify({ userId: user.userId }),
         };
       },

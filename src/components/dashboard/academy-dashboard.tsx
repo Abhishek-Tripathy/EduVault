@@ -84,9 +84,18 @@ export function AcademyDashboard() {
       return;
     }
 
+    const file = data.file[0];
+    
+    // 50MB limit validation
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File is too large. Maximum size is 50MB.");
+      setIsUploading(false);
+      return;
+    }
+
     try {
       // Step 1: Upload file directly from browser to Vercel Blob
-      const file = data.file[0];
       const blob = await upload(file.name, file, {
         access: "public",
         handleUploadUrl: "/api/pdfs/upload",
@@ -205,7 +214,7 @@ export function AcademyDashboard() {
                   </div>
                   {!selectedFile || selectedFile.length === 0 ? (
                     <p className="text-xs text-muted">
-                      PDF up to 10MB
+                      PDF up to 50MB
                     </p>
                   ) : null}
                 </div>
