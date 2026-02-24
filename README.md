@@ -9,7 +9,7 @@ The application was built from the ground up focusing on **speed, edge-computing
 ---
 
 ## 🚀 Live Demo
-*(Insert your Vercel/Render deployment link here)*
+[EduVault](https://edu-vault-sigma.vercel.app/)
 
 ## 🛠️ Tech Stack & Architecture
 
