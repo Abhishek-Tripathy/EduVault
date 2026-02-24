@@ -9,7 +9,7 @@ The application was built from the ground up focusing on **speed, security, and 
 ---
 
 ## 🚀 Live Demo
-[EduVault](https://edu-vault-sigma.vercel.app/)
+[EduVault](https://edu-vault-n1lyti4d5-abhishek-tripathys-projects.vercel.app/)
 
 ## 🛠️ Tech Stack & Architecture
 
