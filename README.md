@@ -2,7 +2,7 @@
 
 EduVault is a modern, high-performance, full-stack educational platform designed to connect **Academies** and **Students**. It allows educational institutions to securely upload and publish PDF resources, and enables students to quickly search, preview, and download them. 
 
-The application was built from the ground up focusing on **speed, edge-computing, security, and a premium modern UI**.
+The application was built from the ground up focusing on **speed, security, and a premium modern UI**, using the **MERN stack** (MongoDB, Express/Next.js, React, Node.js).
 
 ![EduVault Platform Overview](#) <!-- Add a screenshot of the landing page here -->
 
@@ -13,7 +13,7 @@ The application was built from the ground up focusing on **speed, edge-computing
 
 ## 🛠️ Tech Stack & Architecture
 
-This project strictly adheres to a modern Next.js/React architecture, moving beyond the traditional MERN stack to leverage serverless databases and edge computing for superior performance.
+This project strictly follows the **MERN** (MongoDB, Express, React, Node.js) architecture, enhanced with modern tooling for caching and file storage.
 
 **Frontend:**
 - **Framework:** [Next.js 15](https://nextjs.org/) (App Router, Server Components)
@@ -25,11 +25,11 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
 - **Theming:** `next-themes` (Seamless Light/Dark mode)
 
 **Backend & Database:**
-- **Database:** [Neon Postgres](https://neon.tech/) (Serverless SQL)
-- **ORM:** [Drizzle ORM](https://orm.drizzle.team/)
+- **Database:** [MongoDB Atlas](https://www.mongodb.com/atlas) (Cloud NoSQL)
+- **ODM:** [Mongoose](https://mongoosejs.com/) (Schema-based MongoDB modeling)
 - **Caching:** [Upstash Redis](https://upstash.com/) (for ultra-fast PDF search queries)
 - **File Storage:** [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) (Secure PDF storage)
-- **Authentication:** Custom JWT generation (`jose`) & Password Hashing (`bcryptjs`) via Edge-compatible API routes.
+- **Authentication:** Custom JWT generation (`jose`) & Password Hashing (`bcryptjs`) via Node.js API routes.
 
 ---
 
@@ -43,11 +43,11 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
 
 ### 2. High-Performance Search & Caching
 - The platform uses **Upstash Redis** to cache PDF search results. 
-- When a student searches for a specific subject, class, or school, the system first checks the Redis cache (returning results in ms). If it's a cache miss, it queries the Neon Postgres database and caches the result for future users.
+- When a student searches for a specific subject, class, or school, the system first checks the Redis cache (returning results in ms). If it's a cache miss, it queries the MongoDB database and caches the result for future users.
 
 ### 3. File Upload & Processing
 - Academies can upload heavy PDF documents directly to **Vercel Blob storage**. 
-- The metadata (subject name, class name, uploader ID, file URL) is stored relationally in Postgres via Drizzle ORM.
+- The metadata (subject name, class name, uploader ID, file URL) is stored in MongoDB via Mongoose.
 
 ### 4. In-App PDF Preview & Download
 - Secure in-browser PDF previewing using isolated `iframes`.
@@ -65,7 +65,7 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
 
 ### Prerequisites
 - Node.js (v18+)
-- Postgres database URL (e.g., Neon Tech)
+- MongoDB Atlas connection string
 - Redis URL and Token (e.g., Upstash)
 - Vercel Blob Token
 
@@ -85,7 +85,7 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
 3. **Environment Setup:**
    Create a `.env` file in the root directory and add the following keys:
    ```env
-   DATABASE_URL="postgresql://user:password@endpoint.neon.tech/dbname?sslmode=require"
+   MONGODB_URI="mongodb+srv://user:pass@cluster.mongodb.net/eduvault?retryWrites=true&w=majority"
    JWT_SECRET="your_super_secret_jwt_key_here"
    
    UPSTASH_REDIS_REST_URL="https://your-upstash-url.upstash.io"
@@ -94,29 +94,24 @@ This project strictly adheres to a modern Next.js/React architecture, moving bey
    BLOB_READ_WRITE_TOKEN="vercel_blob_rw_token_here"
    ```
 
-4. **Initialize the Database:**
-   Push the Drizzle schema directly to your Postgres database:
-   ```bash
-   npm run db:push
-   ```
-
-5. **Start the Development Server:**
+4. **Start the Development Server:**
    ```bash
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+> **Note:** MongoDB Atlas automatically creates collections when data is first inserted. No manual migration or schema push is needed — Mongoose handles this seamlessly.
 
 ---
 
 ## 🧠 Technical Decisions & Tradeoffs
 
-- **Why Postgres over MongoDB?** 
-  While MERN is traditional, relational databases (SQL) like Postgres provide stronger guarantees for structured data (like Users relating to PDFs). Drizzle ORM + Serverless Postgres represents the modern edge-computing standard in the React ecosystem.
+- **Why MongoDB?** 
+  MongoDB's flexible document model is ideal for educational content that may evolve in structure over time. Atlas provides a managed, scalable cloud database with zero infrastructure management. Combined with Mongoose for schema validation, it gives the best of both worlds.
 - **Why Redis?** 
-  Educational databases scale largely based on reads (students searching for materials). Caching database read queries in Redis significantly reduces load on the primary Postgres database and guarantees instantaneous UI feedback for the end user.
+  Educational databases scale largely based on reads (students searching for materials). Caching database read queries in Redis significantly reduces load on the primary MongoDB database and guarantees instantaneous UI feedback for the end user.
 - **Why Custom JWT over NextAuth?** 
   To demonstrate a deep understanding of stateless authentication flows, cryptography (hashing/verifying), and cookie management from scratch, rather than relying on a black-box authentication library.
 
 ---
-

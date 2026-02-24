@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { connectDB } from "@/db";
+import { User } from "@/db/schema";
 import { registerSchema } from "@/lib/validations/auth";
 import { hashPassword, signToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    await connectDB();
     const body = await req.json();
     const result = registerSchema.safeParse(body);
 
@@ -16,28 +16,23 @@ export async function POST(req: NextRequest) {
 
     const { name, email, password, role } = result.data;
 
-    // Check if user already exists
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       return NextResponse.json({ error: "User already exists with this email" }, { status: 409 });
     }
 
-    // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
-    const [newUser] = await db.insert(users).values({
+    const newUser = await User.create({
       name,
       email,
       passwordHash: hashedPassword,
       role,
-    }).returning();
+    });
 
     const token = await signToken({
-      userId: newUser.id,
+      userId: newUser._id.toString(),
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
@@ -46,7 +41,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json(
       { 
         message: "User registered and logged in successfully",
-        user: { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }
+        user: { id: newUser._id.toString(), name: newUser.name, email: newUser.email, role: newUser.role }
       },
       { status: 201 }
     );
@@ -58,7 +53,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return response;

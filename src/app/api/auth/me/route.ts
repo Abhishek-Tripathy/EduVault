@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
-import { db } from "@/db";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { connectDB } from "@/db";
+import { User } from "@/db/schema";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,9 +17,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null }, { status: 401 });
     }
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, payload.userId),
-    });
+    await connectDB();
+    const user = await User.findById(payload.userId);
 
     if (!user) {
       return NextResponse.json({ user: null }, { status: 401 });
@@ -28,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ 
       user: {
-        userId: user.id,
+        userId: user._id.toString(),
         name: user.name,
         email: user.email,
         role: user.role,

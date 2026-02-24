@@ -1,28 +1,21 @@
-import { pgTable, text, timestamp, uuid, pgEnum, index } from "drizzle-orm/pg-core";
+import mongoose, { Schema, models, model } from "mongoose";
 
-export const roleEnum = pgEnum("role", ["ACADEMY", "STUDENT"]);
-
-export const users = pgTable("users", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull().default("User"),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  role: roleEnum("role").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+const UserSchema = new Schema({
+  name: { type: String, required: true, default: "User" },
+  email: { type: String, required: true, unique: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, enum: ["ACADEMY", "STUDENT"], required: true },
+  createdAt: { type: Date, default: Date.now },
 });
 
-export const pdfs = pgTable("pdfs", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  academyId: uuid("academy_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  fileUrl: text("file_url").notNull(),
-  subjectName: text("subject_name").notNull(),
-  className: text("class_name").notNull(),
-  schoolName: text("school_name").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => {
-  return [
-    index("subject_idx").on(table.subjectName),
-    index("class_idx").on(table.className),
-    index("school_idx").on(table.schoolName),
-  ];
+const PdfSchema = new Schema({
+  academyId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  fileUrl: { type: String, required: true },
+  subjectName: { type: String, required: true, index: true },
+  className: { type: String, required: true, index: true },
+  schoolName: { type: String, required: true, index: true },
+  createdAt: { type: Date, default: Date.now },
 });
+
+export const User = models.User || model("User", UserSchema);
+export const Pdf = models.Pdf || model("Pdf", PdfSchema);

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import { db } from "@/db";
-import { pdfs, users } from "@/db/schema";
+import { connectDB } from "@/db";
+import { Pdf, User } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
 import { Redis } from "@upstash/redis";
-import { eq, ilike, and, desc } from "drizzle-orm";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -13,7 +12,6 @@ const redis = new Redis({
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Authenticate user
     const token = req.cookies.get("auth_token")?.value;
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,7 +22,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden. Only Academy users can upload." }, { status: 403 });
     }
 
-    // 2. Parse FormData
     const formData = await req.formData();
     const file = formData.get("file") as File;
     const subjectName = formData.get("subjectName") as string;
@@ -39,34 +36,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Only PDF files are allowed" }, { status: 400 });
     }
 
-    // 3. Upload to Vercel Blob
     const blob = await put(`pdfs/${Date.now()}-${file.name}`, file, {
       access: "public",
       multipart: true,
     });
 
-    // 4. Save metadata to Neon DB
-    const [insertedPdf] = await db.insert(pdfs).values({
+    await connectDB();
+    const insertedPdf = await Pdf.create({
       academyId: user.userId,
       fileUrl: blob.url,
       subjectName: subjectName.toLowerCase().trim(),
       className: className.toLowerCase().trim(),
       schoolName: schoolName.toLowerCase().trim(),
-    }).returning();
+    });
 
-    // 5. Invalidate Redis Caches
-    // Since student search might be cached by wildcards or specific keys 
-    // e.g. "pdfs:search:*"
     try {
-      // Use scan or keys to find all search caches and delete them
-      // NOTE: KEYS is fine for small datasets, for larger use pattern scanning
       const keys = await redis.keys("pdfs:search:*");
       if (keys.length > 0) {
         await redis.del(...keys);
       }
     } catch (redisError) {
       console.warn("Could not clear Redis cache:", redisError);
-      // We don't fail the request if cache clearing fails
     }
 
     return NextResponse.json({ message: "Upload successful", data: insertedPdf }, { status: 201 });
@@ -78,7 +68,6 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Authenticate user
     const token = req.cookies.get("auth_token")?.value;
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -89,7 +78,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Students and Academies can both search/view
     const { searchParams } = new URL(req.url);
     const subject = searchParams.get("subject")?.toLowerCase().trim() || "";
     const className = searchParams.get("class")?.toLowerCase().trim() || "";
@@ -98,7 +86,6 @@ export async function GET(req: NextRequest) {
 
     const isPersonalQuery = mine && user.role === "ACADEMY";
 
-    // 2. Cache Logic
     const cacheKey = `pdfs:search:${subject || "all"}:${className || "all"}:${school || "all"}`;
     
     if (!isPersonalQuery) {
@@ -109,36 +96,42 @@ export async function GET(req: NextRequest) {
         }
       } catch (redisError) {
         console.warn("Redis GET error:", redisError);
-        // Fallback to DB if Redis fails
       }
     }
 
-    // 3. Query DB
-    const conditions = [];
-    if (subject) conditions.push(ilike(pdfs.subjectName, `%${subject}%`));
-    if (className) conditions.push(ilike(pdfs.className, `%${className}%`));
-    if (school) conditions.push(ilike(pdfs.schoolName, `%${school}%`));
-    if (isPersonalQuery) conditions.push(eq(pdfs.academyId, user.userId));
+    await connectDB();
 
-    const results = await db.select({
-      id: pdfs.id,
-      fileUrl: pdfs.fileUrl,
-      subjectName: pdfs.subjectName,
-      className: pdfs.className,
-      schoolName: pdfs.schoolName,
-      createdAt: pdfs.createdAt,
-      academyId: pdfs.academyId,
-      academyEmail: users.email,
-    })
-    .from(pdfs)
-    .leftJoin(users, eq(pdfs.academyId, users.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(pdfs.createdAt));
+    const query: Record<string, unknown> = {};
+    if (subject) query.subjectName = { $regex: subject, $options: "i" };
+    if (className) query.className = { $regex: className, $options: "i" };
+    if (school) query.schoolName = { $regex: school, $options: "i" };
+    if (isPersonalQuery) query.academyId = user.userId;
 
-    // 4. Save to Cache
+    const pdfs = await Pdf.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const academyIds = [...new Set(pdfs.map((p: any) => p.academyId?.toString()))];
+    const academyUsers = await User.find({ _id: { $in: academyIds } }).select("email").lean();
+    const emailMap: Record<string, string> = {};
+    academyUsers.forEach((u: any) => {
+      emailMap[u._id.toString()] = u.email;
+    });
+
+    const results = pdfs.map((pdf: any) => ({
+      id: pdf._id.toString(),
+      fileUrl: pdf.fileUrl,
+      subjectName: pdf.subjectName,
+      className: pdf.className,
+      schoolName: pdf.schoolName,
+      createdAt: pdf.createdAt,
+      academyId: pdf.academyId?.toString(),
+      academyEmail: emailMap[pdf.academyId?.toString()] || "Unknown",
+    }));
+
     if (!isPersonalQuery) {
       try {
-        await redis.set(cacheKey, JSON.stringify(results), { ex: 3600 }); // Cache for 1 hour
+        await redis.set(cacheKey, JSON.stringify(results), { ex: 3600 });
       } catch (redisError) {
         console.warn("Redis SET error:", redisError);
       }
