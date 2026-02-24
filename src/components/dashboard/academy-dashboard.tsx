@@ -5,6 +5,7 @@ import { Upload, FileText, CheckCircle2, Eye, Download, X, Clock } from "lucide-
 import { useForm } from "react-hook-form";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+import { upload } from "@vercel/blob/client";
 
 interface UploadFormData {
   subjectName: string;
@@ -83,16 +84,24 @@ export function AcademyDashboard() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", data.file[0]);
-    formData.append("subjectName", data.subjectName);
-    formData.append("className", data.className);
-    formData.append("schoolName", data.schoolName);
-
     try {
+      // Step 1: Upload file directly from browser to Vercel Blob
+      const file = data.file[0];
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/pdfs/upload",
+      });
+
+      // Step 2: Save only metadata + fileUrl to the database
       const res = await fetch("/api/pdfs", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileUrl: blob.url,
+          subjectName: data.subjectName,
+          className: data.className,
+          schoolName: data.schoolName,
+        }),
       });
 
       if (!res.ok) {

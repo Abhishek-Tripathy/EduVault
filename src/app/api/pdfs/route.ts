@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { connectDB } from "@/db";
 import { Pdf, User } from "@/db/schema";
 import { verifyToken } from "@/lib/auth";
@@ -22,29 +21,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden. Only Academy users can upload." }, { status: 403 });
     }
 
-    const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const subjectName = formData.get("subjectName") as string;
-    const className = formData.get("className") as string;
-    const schoolName = formData.get("schoolName") as string;
+    const body = await req.json();
+    const { fileUrl, subjectName, className, schoolName } = body;
 
-    if (!file || !subjectName || !className || !schoolName) {
+    if (!fileUrl || !subjectName || !className || !schoolName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-
-    if (file.type !== "application/pdf") {
-      return NextResponse.json({ error: "Only PDF files are allowed" }, { status: 400 });
-    }
-
-    const blob = await put(`pdfs/${Date.now()}-${file.name}`, file, {
-      access: "public",
-      multipart: true,
-    });
 
     await connectDB();
     const insertedPdf = await Pdf.create({
       academyId: user.userId,
-      fileUrl: blob.url,
+      fileUrl,
       subjectName: subjectName.toLowerCase().trim(),
       className: className.toLowerCase().trim(),
       schoolName: schoolName.toLowerCase().trim(),
